@@ -126,7 +126,7 @@ static char *getbattery(const char *base)
 	} else if (!strncmp(co, "Charging", 8)) {
 		status = '+';
 	} else {
-		status = '?';
+		status = '\0'; /* Full */
 	}
 	free(co);
 
