@@ -1,8 +1,3 @@
-/*
- * Copy me if you can.
- * by 20h
- */
-
 #define _BSD_SOURCE
 #include <unistd.h>
 #include <stdio.h>
@@ -17,14 +12,10 @@
 
 #include <X11/Xlib.h>
 
-char *tzargentina = "America/Buenos_Aires";
-char *tzutc = "UTC";
-char *tzberlin = "Europe/Berlin";
-
+const char *tzone = "America/Toronto";
 static Display *dpy;
 
-char *
-smprintf(char *fmt, ...)
+char *smprintf(const char *fmt, ...)
 {
 	va_list fmtargs;
 	char *ret;
@@ -47,14 +38,12 @@ smprintf(char *fmt, ...)
 	return ret;
 }
 
-void
-settz(char *tzname)
+static inline void settz(const char *tzname)
 {
 	setenv("TZ", tzname, 1);
 }
 
-char *
-mktimes(char *fmt, char *tzname)
+static char *mktimes(const char *fmt, const char *tzname)
 {
 	char buf[129];
 	time_t tim;
@@ -66,7 +55,7 @@ mktimes(char *fmt, char *tzname)
 	if (timtm == NULL)
 		return smprintf("");
 
-	if (!strftime(buf, sizeof(buf)-1, fmt, timtm)) {
+	if (!strftime(buf, sizeof(buf) - 1, fmt, timtm)) {
 		fprintf(stderr, "strftime == 0\n");
 		return smprintf("");
 	}
@@ -74,26 +63,13 @@ mktimes(char *fmt, char *tzname)
 	return smprintf("%s", buf);
 }
 
-void
-setstatus(char *str)
+static inline void setstatus(char *str)
 {
 	XStoreName(dpy, DefaultRootWindow(dpy), str);
 	XSync(dpy, False);
 }
 
-char *
-loadavg(void)
-{
-	double avgs[3];
-
-	if (getloadavg(avgs, 3) < 0)
-		return smprintf("");
-
-	return smprintf("%.2f %.2f %.2f", avgs[0], avgs[1], avgs[2]);
-}
-
-char *
-readfile(char *base, char *file)
+static char *readfile(char *base, char *file)
 {
 	char *path, line[513];
 	FILE *fd;
@@ -106,7 +82,7 @@ readfile(char *base, char *file)
 	if (fd == NULL)
 		return NULL;
 
-	if (fgets(line, sizeof(line)-1, fd) == NULL) {
+	if (fgets(line, sizeof(line) - 1, fd) == NULL) {
 		fclose(fd);
 		return NULL;
 	}
@@ -115,8 +91,7 @@ readfile(char *base, char *file)
 	return smprintf("%s", line);
 }
 
-char *
-getbattery(char *base)
+static char *getbattery(char *base)
 {
 	char *co, status;
 	int descap, remcap;
@@ -154,7 +129,7 @@ getbattery(char *base)
 	co = readfile(base, "status");
 	if (!strncmp(co, "Discharging", 11)) {
 		status = '-';
-	} else if(!strncmp(co, "Charging", 8)) {
+	} else if (!strncmp(co, "Charging", 8)) {
 		status = '+';
 	} else {
 		status = '?';
@@ -163,11 +138,11 @@ getbattery(char *base)
 	if (remcap < 0 || descap < 0)
 		return smprintf("invalid");
 
-	return smprintf("%.0f%%%c", ((float)remcap / (float)descap) * 100, status);
+	return smprintf("%.0f%%%c", ((float)remcap / (float)descap) * 100,
+			status);
 }
 
-char *
-gettemperature(char *base, char *sensor)
+char *gettemperature(char *base, char *sensor)
 {
 	char *co;
 
@@ -177,8 +152,7 @@ gettemperature(char *base, char *sensor)
 	return smprintf("%02.0f°C", atof(co) / 1000);
 }
 
-char *
-execscript(char *cmd)
+static char *execscript(char *cmd)
 {
 	FILE *fp;
 	char retval[1025], *rv;
@@ -193,63 +167,44 @@ execscript(char *cmd)
 	pclose(fp);
 	if (rv == NULL)
 		return smprintf("");
-	retval[strlen(retval)-1] = '\0';
+	retval[strlen(retval) - 1] = '\0';
 
 	return smprintf("%s", retval);
 }
 
-int
-main(void)
+int main(void)
 {
 	char *status;
-	char *avgs;
+	char *volume;
+	char *time;
 	char *bat;
-	char *tmar;
-	char *tmutc;
-	char *tmbln;
 	char *t0;
-	char *t1;
-	char *kbmap;
-	char *surfs;
-	char *memes;
 
 	if (!(dpy = XOpenDisplay(NULL))) {
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
 		return 1;
 	}
 
-	for (;;sleep(30)) {
-		avgs = loadavg();
+	for (;; sleep(30)) {
+		// TODO: charging/discharging events can be captured via netlink
 		bat = getbattery("/sys/class/power_supply/BAT0");
-		tmar = mktimes("%H:%M", tzargentina);
-		tmutc = mktimes("%H:%M", tzutc);
-		tmbln = mktimes("KW %W %a %d %b %H:%M %Z %Y", tzberlin);
-		kbmap = execscript("setxkbmap -query | grep layout | cut -d':' -f 2- | tr -d ' '");
-		surfs = execscript("surf-status");
-		memes = execscript("meme-status");
-		t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
-		t1 = gettemperature("/sys/devices/virtual/thermal/thermal_zone1", "temp");
 
-		status = smprintf("S:%s M:%s K:%s T:%s|%s L:%s B:%s A:%s U:%s %s",
-				surfs, memes, kbmap, t0, t1, avgs, bat, tmar, tmutc,
-				tmbln);
+		time = mktimes("Time: %H:%M | Date: %a %d %b %Y", tzone);
+		t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
+
+		// FIXME: this should updat instantly
+		volume = execscript("amixer sget Master | awk -F'[][]' '/Left:/ { print $2 }'");
+
+		status = smprintf("Temp: %s | Battery: %s | Volume: %s | %s",
+				   t0, bat, volume, time);
 		setstatus(status);
 
-		free(surfs);
-		free(memes);
-		free(kbmap);
 		free(t0);
-		free(t1);
-		free(avgs);
 		free(bat);
-		free(tmar);
-		free(tmutc);
-		free(tmbln);
+		free(time);
+		free(volume);
 		free(status);
 	}
 
 	XCloseDisplay(dpy);
-
-	return 0;
 }
-
