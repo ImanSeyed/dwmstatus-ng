@@ -1,4 +1,3 @@
-#define _BSD_SOURCE
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -49,7 +48,6 @@ static char *mktimes(const char *fmt, const char *tzname)
 	time_t tim;
 	struct tm *timtm;
 
-	settz(tzname);
 	tim = time(NULL);
 	timtm = localtime(&tim);
 	if (timtm == NULL)
@@ -60,21 +58,19 @@ static char *mktimes(const char *fmt, const char *tzname)
 		return smprintf("");
 	}
 
-	return smprintf("%s", buf);
+	return strdup(buf);
 }
 
-static inline void setstatus(char *str)
+static inline void setstatus(const char *str)
 {
 	XStoreName(dpy, DefaultRootWindow(dpy), str);
 	XSync(dpy, False);
 }
 
-static char *readfile(char *base, char *file)
+static char *readfile(const char *base, const char *file)
 {
 	char *path, line[513];
 	FILE *fd;
-
-	memset(line, 0, sizeof(line));
 
 	path = smprintf("%s/%s", base, file);
 	fd = fopen(path, "r");
@@ -88,10 +84,10 @@ static char *readfile(char *base, char *file)
 	}
 	fclose(fd);
 
-	return smprintf("%s", line);
+	return strdup(line);
 }
 
-static char *getbattery(char *base)
+static char *getbattery(const char *base)
 {
 	char *co, status;
 	int descap, remcap;
@@ -108,25 +104,22 @@ static char *getbattery(char *base)
 	}
 	free(co);
 
-	co = readfile(base, "charge_full_design");
-	if (co == NULL) {
-		co = readfile(base, "energy_full_design");
-		if (co == NULL)
-			return smprintf("");
-	}
-	sscanf(co, "%d", &descap);
+	co = readfile(base, "energy_full_design");
+	if (co == NULL)
+		return smprintf("");
+	descap = strtol(co, NULL, 10);
 	free(co);
 
-	co = readfile(base, "charge_now");
-	if (co == NULL) {
-		co = readfile(base, "energy_now");
-		if (co == NULL)
-			return smprintf("");
-	}
-	sscanf(co, "%d", &remcap);
+	co = readfile(base, "energy_now");
+	if (co == NULL)
+		return smprintf("");
+	remcap = strtol(co, NULL, 10);
 	free(co);
 
 	co = readfile(base, "status");
+	if (co == NULL)
+		return smprintf("no status");
+
 	if (!strncmp(co, "Discharging", 11)) {
 		status = '-';
 	} else if (!strncmp(co, "Charging", 8)) {
@@ -134,30 +127,34 @@ static char *getbattery(char *base)
 	} else {
 		status = '?';
 	}
+	free(co);
 
-	if (remcap < 0 || descap < 0)
+	if (descap == 0 || remcap < 0 || descap < 0)
 		return smprintf("invalid");
 
-	return smprintf("%.0f%%%c", ((float)remcap / (float)descap) * 100,
+	return smprintf("%.0f%%%c", ((float)remcap / (float)descap) * 100.0f,
 			status);
 }
 
-char *gettemperature(char *base, char *sensor)
+char *gettemperature(const char *base, const char *sensor)
 {
 	char *co;
+	int temp;
 
 	co = readfile(base, sensor);
 	if (co == NULL)
 		return smprintf("");
-	return smprintf("%02.0f°C", atof(co) / 1000);
+
+	temp = strtol(co, NULL, 10);
+	free(co);
+
+	return smprintf("%02.0f°C", temp / 1000.0f);
 }
 
-static char *execscript(char *cmd)
+static char *execscript(const char *cmd)
 {
 	FILE *fp;
 	char retval[1025], *rv;
-
-	memset(retval, 0, sizeof(retval));
 
 	fp = popen(cmd, "r");
 	if (fp == NULL)
@@ -169,7 +166,7 @@ static char *execscript(char *cmd)
 		return smprintf("");
 	retval[strlen(retval) - 1] = '\0';
 
-	return smprintf("%s", retval);
+	return strdup(retval);
 }
 
 int main(void)
@@ -184,6 +181,8 @@ int main(void)
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
 		return 1;
 	}
+
+	settz(tzone);
 
 	for (;; sleep(30)) {
 		// TODO: charging/discharging events can be captured via netlink
