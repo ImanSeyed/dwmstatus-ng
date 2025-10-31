@@ -40,9 +40,10 @@ char *smprintf(const char *fmt, ...)
 static inline void settz(const char *tzname)
 {
 	setenv("TZ", tzname, 1);
+	tzset();
 }
 
-static char *mktimes(const char *fmt, const char *tzname)
+static char *mktimes(const char *fmt)
 {
 	char buf[129];
 	time_t tim;
@@ -104,7 +105,7 @@ static char *getbattery(const char *base)
 	}
 	free(co);
 
-	co = readfile(base, "energy_full_design");
+	co = readfile(base, "energy_full");
 	if (co == NULL)
 		return smprintf("");
 	descap = strtol(co, NULL, 10);
@@ -155,6 +156,7 @@ static char *execscript(const char *cmd)
 {
 	FILE *fp;
 	char retval[1025], *rv;
+	size_t len;
 
 	fp = popen(cmd, "r");
 	if (fp == NULL)
@@ -164,7 +166,10 @@ static char *execscript(const char *cmd)
 	pclose(fp);
 	if (rv == NULL)
 		return smprintf("");
-	retval[strlen(retval) - 1] = '\0';
+
+	len = strlen(retval);
+	if (len && retval[len - 1] == '\n')
+		retval[len - 1] = '\0';
 
 	return strdup(retval);
 }
@@ -173,7 +178,7 @@ int main(void)
 {
 	char *status;
 	char *volume;
-	char *time;
+	char *tm;
 	char *bat;
 	char *t0;
 
@@ -188,22 +193,20 @@ int main(void)
 		// TODO: charging/discharging events can be captured via netlink
 		bat = getbattery("/sys/class/power_supply/BAT0");
 
-		time = mktimes("Time: %H:%M | Date: %a %d %b %Y", tzone);
+		tm = mktimes("Time: %H:%M | Date: %a %d %b %Y");
 		t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
 
 		// FIXME: this should updat instantly
 		volume = execscript("amixer sget Master | awk -F'[][]' '/Left:/ { print $2 }'");
 
 		status = smprintf("Temp: %s | Battery: %s | Volume: %s | %s",
-				   t0, bat, volume, time);
+				   t0, bat, volume, tm);
 		setstatus(status);
 
 		free(t0);
 		free(bat);
-		free(time);
+		free(tm);
 		free(volume);
 		free(status);
 	}
-
-	XCloseDisplay(dpy);
 }
