@@ -11,7 +11,6 @@
 
 #include <X11/Xlib.h>
 
-const char *tzone = "America/Toronto";
 static Display *dpy;
 
 char *smprintf(const char *fmt, ...)
@@ -35,12 +34,6 @@ char *smprintf(const char *fmt, ...)
 	va_end(fmtargs);
 
 	return ret;
-}
-
-static inline void settz(const char *tzname)
-{
-	setenv("TZ", tzname, 1);
-	tzset();
 }
 
 static char *mktimes(const char *fmt)
@@ -186,8 +179,6 @@ int main(void)
 		fprintf(stderr, "dwmstatus: cannot open display.\n");
 		return 1;
 	}
-
-	settz(tzone);
 
 	for (;; sleep(30)) {
 		// TODO: charging/discharging events can be captured via netlink
