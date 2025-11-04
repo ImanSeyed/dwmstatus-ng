@@ -7,7 +7,10 @@ MANPREFIX = ${PREFIX}/share/man
 
 # includes and libs
 INCS = -I. -I/usr/include
-LIBS = -L/usr/lib -lc -lX11
+LIBS = -L/usr/lib -lc -lX11 -ludev $(shell pkg-config --cflags --libs libuv)
+
+# extra source files
+SRCS = batudev.c backend.c
 
 # flags
 CPPFLAGS = -DVERSION=\"${VERSION}\" -D_DEFAULT_SOURCE

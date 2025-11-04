@@ -2,7 +2,7 @@
 
 include config.mk
 
-SRC = ${NAME}.c
+SRC = ${SRCS} ${NAME}.c
 OBJ = ${SRC:.c=.o}
 
 all: options ${NAME}
