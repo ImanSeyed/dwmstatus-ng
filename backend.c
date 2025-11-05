@@ -137,7 +137,7 @@ void update_status_cb(uv_timer_t *handle)
 	tm = mktimes("Time: %H:%M | Date: %a %d %b %Y");
 	t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
 
-	// FIXME: this should update instantly
+	// TODO: handle this in alsamixer.c
 	volume = execscript("amixer sget Master | awk -F'[][]' '/Left:/ { print $2 }'");
 
 	status = smprintf("Temp: %s | Battery: %s | Volume: %s | %s",
