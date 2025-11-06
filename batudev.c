@@ -103,8 +103,8 @@ int setup_battery_mon(void)
 
 fail_mon:
 	udev_monitor_unref(bat_udev.mon);
-fail_dev:
 	udev_device_unref(bat_udev.dev);
+fail_dev:
 	udev_unref(bat_udev.ctx);
 	bat_udev.ctx = NULL;
 	bat_udev.mon = NULL;
@@ -152,6 +152,10 @@ char *getbattery(void)
 	char status;
 
 	update_battery_info(bat_udev.dev);
+
+	if (!bat_info.status)
+		return NULL;
+
 	if (!strcmp(bat_info.status, "Discharging")) {
 		status = '-';
 	} else if (!strcmp(bat_info.status, "Charging")) {
