@@ -132,16 +132,24 @@ void update_status_cb(uv_timer_t *handle)
 	char *bat;
 	char *t0;
 
-	bat = getbattery();
-
 	tm = mktimes("Time: %H:%M | Date: %a %d %b %Y");
 	t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
 
 	// TODO: handle this in alsamixer.c
 	volume = execscript("amixer sget Master | awk -F'[][]' '/Left:/ { print $2 }'");
 
-	status = smprintf("Temp: %s | Battery: %s | Volume: %s | %s",
-			   t0, bat, volume, tm);
+
+	/* TODO: right now, when CONFIG_BATTERY_INFO is not defined,
+	 * getbattery() returns NULL, so free(bat) is fine but
+	 * it'd be a good idea to have a safer wrapper over free()
+	 * to set the pointer to NULL when free() is done.
+	 */
+	bat = getbattery();
+	if (bat)
+		status = smprintf("Temp: %s | Battery: %s | Volume: %s | %s",
+			          t0, bat, volume, tm);
+	else
+		status = smprintf("Temp: %s | Volume: %s | %s", t0, volume, tm);
 	setstatus(status);
 
 	free(t0);

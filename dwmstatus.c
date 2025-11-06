@@ -24,10 +24,6 @@ int main(void)
 		return EXIT_FAILURE;
 	}
 
-	netlink_fd = setup_battery_mon();
-	if (netlink_fd < 0)
-		return EXIT_FAILURE;
-
 	alsa_mixer_fd = setup_volume_monitor("default", "Master");
 	if (alsa_mixer_fd < 0)
 		return EXIT_FAILURE;
@@ -46,10 +42,15 @@ int main(void)
 		return EXIT_FAILURE;
 	}
 
-
-	if ((err = uv_poll_init(loop, &bat_poll_handler, netlink_fd)) != 0) {
-		fprintf(stderr, "uv_poll_init: udev_netlink: %s\n", uv_strerror(err));
-		return EXIT_FAILURE;
+	/* battery info is optional, no need to exit the program */
+	netlink_fd = setup_battery_mon();
+	if (netlink_fd >= 0) {
+		err = uv_poll_init(loop, &bat_poll_handler, netlink_fd);
+		if (err != 0) {
+			fprintf(stderr, "uv_poll_init: udev_netlink: %s\n", uv_strerror(err));
+			return EXIT_FAILURE;
+		}
+		uv_poll_start(&bat_poll_handler, UV_READABLE, battery_poll_cb);
 	}
 
 
@@ -59,7 +60,5 @@ int main(void)
 	}
 
 	uv_poll_start(&alsa_mixer_poll_handler, UV_READABLE, alsa_mixer_poll_cb);
-	uv_poll_start(&bat_poll_handler, UV_READABLE, battery_poll_cb);
-
 	uv_run(loop, UV_RUN_DEFAULT);
 }

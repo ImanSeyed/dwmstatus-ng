@@ -13,8 +13,9 @@ LIBS = -L/usr/lib -lc $(shell pkg-config --libs libuv alsa libudev x11)
 SRCS = batudev.c backend.c alsamixer.c
 
 # flags
+FEATURES = -DCONFIG_BATTERY_INFO
 CPPFLAGS = -DVERSION=\"${VERSION}\" -D_DEFAULT_SOURCE
-CFLAGS = -g -std=c11 -pedantic -Wall -O2 ${INCS} ${CPPFLAGS}
+CFLAGS = -g -std=c11 -pedantic -Wall -O2 ${INCS} ${CPPFLAGS} ${FEATURES}
 LDFLAGS = -g ${LIBS}
 
 # compiler and linker
