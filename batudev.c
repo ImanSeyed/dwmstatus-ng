@@ -24,19 +24,24 @@ static struct {
 } bat_info;
 
 
-void update_battery_info(struct udev_device *devp)
+void update_battery_info(void)
 {
-	if (!devp)
-		return;
+	/* The retrieved value returned by udev_device_new_from_syspath() is *cached*
+	 * in the udev_device->device. Repeated calls will return the same value, so
+	 * reallocation is required.
+	 */
+	if (bat_udev.dev)
+		udev_device_unref(bat_udev.dev);
+	bat_udev.dev = udev_device_new_from_syspath(bat_udev.ctx, POWER_SUPPLY_SYSFS);
 
-	const char *new_status = udev_device_get_sysattr_value(devp, "status");
-	const char *new_full = udev_device_get_sysattr_value(devp, "energy_full");
-	const char *new_now = udev_device_get_sysattr_value(devp, "energy_now");
+	const char *new_status = udev_device_get_sysattr_value(bat_udev.dev, "status");
+	const char *new_full = udev_device_get_sysattr_value(bat_udev.dev, "energy_full");
+	const char *new_now = udev_device_get_sysattr_value(bat_udev.dev, "energy_now");
 
 	/* fallback to charge_* if energy_* is not available */
 	if (!new_full || !new_now) {
-		new_full = udev_device_get_sysattr_value(devp, "charge_full");
-		new_now  = udev_device_get_sysattr_value(devp, "charge_now");
+		new_full = udev_device_get_sysattr_value(bat_udev.dev, "charge_full");
+		new_now  = udev_device_get_sysattr_value(bat_udev.dev, "charge_now");
 	}
 
 	if (new_status && new_full && new_now) {
@@ -98,7 +103,7 @@ int setup_battery_mon(void)
 		perror("failed to allocate memory for bat_info.status");
 		goto  fail_mon;
 	}
-	update_battery_info(bat_udev.dev);
+	update_battery_info();
 	return ret;
 
 fail_mon:
@@ -151,8 +156,7 @@ char *getbattery(void)
 {
 	char status;
 
-	update_battery_info(bat_udev.dev);
-
+	update_battery_info();
 	if (!bat_info.status)
 		return NULL;
 
