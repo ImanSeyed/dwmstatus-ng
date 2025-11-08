@@ -116,7 +116,10 @@ int setup_volume_monitor(const char *card, const char *selem_name)
 	}
 
 	/* for the sake of this project, we only care about one fd. */
-	return pfds[0].fd;
+	ret = pfds[0].fd;
+	free(pfds);
+
+	return ret;
 
 fail_poll:
 	free(pfds);
