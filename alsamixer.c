@@ -1,6 +1,7 @@
 #include <alsa/asoundlib.h>
 #include <alsa/mixer.h>
 #include <alsa/pcm.h>
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <poll.h>
@@ -11,7 +12,52 @@
 static struct {
 	snd_mixer_t *ctx;
 	snd_mixer_elem_t *elem;
+	bool is_muted;
+	int volume_percent;
 } mixer_handler;
+
+
+static int get_volume_percent(snd_mixer_elem_t *elem)
+{
+	long min, max, v_left;
+	int ret;
+
+	ret = snd_mixer_selem_get_playback_volume_range(elem, &min, &max);
+	if (ret < 0)
+		return -1;
+
+	if (max == min)
+		return -1;
+
+	ret = snd_mixer_selem_get_playback_volume(elem, SND_MIXER_SCHN_FRONT_LEFT,  &v_left);
+	if (ret < 0)
+		return -1;
+
+	ret = (v_left - min) * 100 / (max - min);
+
+	return ret;
+}
+
+
+static bool is_front_left_muted(snd_mixer_elem_t *elem)
+{
+	int sw;
+	int ret;
+
+	ret = snd_mixer_selem_has_playback_switch(elem);
+	if (!ret) /* no mute switch, treat as unmuted */
+		return 0;
+
+	ret = snd_mixer_selem_has_playback_channel(elem, SND_MIXER_SCHN_FRONT_LEFT);
+	if (!ret) /* no FL channel, treat as unmuted */
+		return 0;
+
+	ret = snd_mixer_selem_get_playback_switch(elem, SND_MIXER_SCHN_FRONT_LEFT, &sw);
+	if (ret < 0)
+		return 0; /* the world is on fire */
+
+	return !sw;
+}
 
 
 static int elem_callback(snd_mixer_elem_t *elem, unsigned int mask)
@@ -24,7 +70,8 @@ static int elem_callback(snd_mixer_elem_t *elem, unsigned int mask)
 	if (elem != mixer_handler.elem)
 		return 0;
 
-	// TODO: handle MUTE event with snd_mixer_selem_get_playback_switch()
+	mixer_handler.is_muted = is_front_left_muted(elem) ? true : false;
+	mixer_handler.volume_percent = get_volume_percent(elem);
 
 	update_status_cb(NULL);
 	return 0;
@@ -47,6 +94,19 @@ void alsa_mixer_poll_cb(uv_poll_t *handle, int status, int events)
 	if (n < 0)
 		fprintf(stderr, "snd_mixer_handle_events: %s\n", snd_strerror(n));
 }
+
+
+bool is_speaker_muted(void)
+{
+	return mixer_handler.is_muted;
+}
+
+
+int get_volume(void)
+{
+	return mixer_handler.volume_percent;
+}
+
 
 int setup_volume_monitor(const char *card, const char *selem_name)
 {
@@ -97,6 +157,9 @@ int setup_volume_monitor(const char *card, const char *selem_name)
 	}
 
 	snd_mixer_elem_set_callback(mixer_handler.elem, elem_callback);
+
+	mixer_handler.is_muted = is_front_left_muted(mixer_handler.elem) ? true : false;
+	mixer_handler.volume_percent = get_volume_percent(mixer_handler.elem);
 
 	pfds_count = snd_mixer_poll_descriptors_count(mixer_handler.ctx);
 	if (pfds_count <= 0) {

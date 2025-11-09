@@ -4,6 +4,7 @@
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
+#include <stdbool.h>
 #include <strings.h>
 #include <sys/time.h>
 #include <time.h>
@@ -13,6 +14,7 @@
 #include <X11/Xlib.h>
 
 #include "batudev.h"
+#include "alsamixer.h"
 
 Display *dpy;
 
@@ -101,7 +103,7 @@ char *gettemperature(const char *base, const char *sensor)
 	return smprintf("%02.0f°C", temp / 1000.0f);
 }
 
-static char *execscript(const char *cmd)
+__attribute__((unused)) static char *execscript(const char *cmd)
 {
 	FILE *fp;
 	char retval[1025], *rv;
@@ -135,8 +137,10 @@ void update_status_cb(uv_timer_t *handle)
 	tm = mktimes("Time: %H:%M | Date: %a %d %b %Y");
 	t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
 
-	// TODO: handle this in alsamixer.c
-	volume = execscript("amixer sget Master | awk -F'[][]' '/Left:/ { print $2 }'");
+	if (is_speaker_muted())
+		volume = smprintf("%d%% (muted)", get_volume());
+	else
+		volume = smprintf("%d%%", get_volume());
 
 
 	/* TODO: right now, when CONFIG_BATTERY_INFO is not defined,
