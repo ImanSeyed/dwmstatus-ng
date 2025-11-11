@@ -17,15 +17,24 @@ static struct {
 
 
 static struct {
-	long full;
-	long now;
+	long full; /* energy_now (Wh) or charge_now (Ah) */
+	long nowh; /* energy_now (Wh) or charge_now (Ah) */
 	char *status;
 	size_t status_len;
+	char remaining[8]; /* (hh:mm) */
 } bat_info;
 
 
 void update_battery_info(void)
 {
+	const char *status;
+	const char *full; /* Wh or Ah */
+	const char *nowh; /* Wh or Ah */
+	const char *now;  /* W  or A  */
+	long tmp_now;
+	double total_hours;
+	int total_minutes, hours, mins;
+
 	/* The retrieved value returned by udev_device_new_from_syspath() is *cached*
 	 * in the udev_device->device. Repeated calls will return the same value, so
 	 * reallocation is required.
@@ -34,24 +43,52 @@ void update_battery_info(void)
 		udev_device_unref(bat_udev.dev);
 	bat_udev.dev = udev_device_new_from_syspath(bat_udev.ctx, POWER_SUPPLY_SYSFS);
 
-	const char *new_status = udev_device_get_sysattr_value(bat_udev.dev, "status");
-	const char *new_full = udev_device_get_sysattr_value(bat_udev.dev, "energy_full");
-	const char *new_now = udev_device_get_sysattr_value(bat_udev.dev, "energy_now");
+	status =  udev_device_get_sysattr_value(bat_udev.dev, "status");
+	full = udev_device_get_sysattr_value(bat_udev.dev, "energy_full");
+	nowh = udev_device_get_sysattr_value(bat_udev.dev, "energy_now");
+	now = udev_device_get_sysattr_value(bat_udev.dev, "power_now");
 
 	/* fallback to charge_* if energy_* is not available */
-	if (!new_full || !new_now) {
-		new_full = udev_device_get_sysattr_value(bat_udev.dev, "charge_full");
-		new_now  = udev_device_get_sysattr_value(bat_udev.dev, "charge_now");
+	if (!full || !nowh || !now) {
+		full = udev_device_get_sysattr_value(bat_udev.dev, "charge_full");
+		nowh = udev_device_get_sysattr_value(bat_udev.dev, "charge_now");
+		now  = udev_device_get_sysattr_value(bat_udev.dev, "current_now");
 	}
 
-	if (new_status && new_full && new_now) {
-		snprintf(bat_info.status, bat_info.status_len, "%s", new_status);
+	if (status && full && nowh && now) {
+		snprintf(bat_info.status, bat_info.status_len, "%s", status);
 		/* don't expect me to handle strtol()'s errors; this comes from sysfs,
 		 * so go yell at the Linux mailing list
 		 */
-		bat_info.full = strtol(new_full, NULL, 10);
-		bat_info.now = strtol(new_now, NULL, 10);
+		bat_info.full = strtol(full, NULL, 10);
+		bat_info.nowh = strtol(nowh, NULL, 10);
+		tmp_now = strtol(now, NULL, 10);
+
+		/* something weird is going on with your kernel/battery */
+		if (tmp_now <= 0)
+			goto fail_remaining;
+
+		if (strcmp(status, "Discharging") == 0) {
+			/* time until empty */
+			total_hours = (double)bat_info.nowh / tmp_now;
+			total_minutes = (int)(total_hours * 60.0 + 0.5);
+		} else if (strcmp(status, "Charging") == 0) {
+			/* time until full */
+			total_hours = (double)(bat_info.full - bat_info.nowh) / tmp_now;
+			total_minutes = (int)(total_hours * 60.0 + 0.5);
+		} else {
+			/* unimplemented status */
+			goto fail_remaining;
+		}
+
+		hours = total_minutes / 60;
+		mins = total_minutes % 60;
+		snprintf(bat_info.remaining, sizeof(bat_info.remaining), "(%02d:%02d)", hours, mins);
+		return;
 	}
+
+fail_remaining:
+	strncpy(bat_info.remaining, "(--:--)", sizeof(bat_info.remaining));
 }
 
 
@@ -168,8 +205,8 @@ char *getbattery(void)
 		status = '\0';
 	}
 
-	if (bat_info.full <= 0 || bat_info.now < 0)
+	if (bat_info.full <= 0 || bat_info.nowh < 0)
 		return smprintf("invalid");
 
-	return smprintf("%.0f%%%c", ((float)bat_info.now / bat_info.full) * 100.0f, status);
+	return smprintf("%.0f%%%c %s", ((float)bat_info.nowh / bat_info.full) * 100.0f, status, bat_info.remaining);
 }
