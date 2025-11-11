@@ -9,6 +9,28 @@
 
 #define POWER_SUPPLY_SYSFS "/sys/class/power_supply/BAT0"
 
+enum {
+	BATTERY_DISCHARGING = 0,
+	BATTERY_CHARGING,
+	BATTERY_NO_STATUS,
+	BATTERY_EMPTY,
+	BATTERY_QUARTER,
+	BATTERY_HALF,
+	BATTERY_THREE_QUARTER,
+	BATTERY_FULL,
+};
+
+static const char *battery_glyphs[] = {
+	[BATTERY_EMPTY] = "  ",
+	[BATTERY_QUARTER] = "  ",
+	[BATTERY_HALF] = "  ",
+	[BATTERY_THREE_QUARTER] = "  ",
+	[BATTERY_FULL] = "  ",
+	[BATTERY_DISCHARGING] = " ",
+	[BATTERY_CHARGING] = " ",
+	[BATTERY_NO_STATUS] = "",
+};
+
 static struct {
 	struct udev *ctx;
 	struct udev_device *dev;
@@ -191,22 +213,35 @@ void battery_poll_cb(uv_poll_t *handle, int status, int events)
 
 char *getbattery(void)
 {
-	char status;
+	int status, level, percent;
 
 	update_battery_info();
 	if (!bat_info.status)
 		return NULL;
 
-	if (!strcmp(bat_info.status, "Discharging")) {
-		status = '-';
-	} else if (!strcmp(bat_info.status, "Charging")) {
-		status = '+';
-	} else {
-		status = '\0';
-	}
+	if (!strcmp(bat_info.status, "Discharging"))
+		status = BATTERY_DISCHARGING;
+	else if (!strcmp(bat_info.status, "Charging"))
+		status = BATTERY_CHARGING;
+	else
+		status = BATTERY_NO_STATUS;
+
+	percent = ((float)bat_info.nowh / bat_info.full) * 100;
+	if (percent < 10)
+		level = BATTERY_EMPTY;
+	else if (percent < 30)
+		level = BATTERY_QUARTER;
+	else if (percent < 60)
+		level = BATTERY_HALF;
+	else if (percent < 85)
+		level = BATTERY_THREE_QUARTER;
+	else
+		level = BATTERY_FULL;
 
 	if (bat_info.full <= 0 || bat_info.nowh < 0)
 		return smprintf("invalid");
 
-	return smprintf("%.0f%%%c %s", ((float)bat_info.nowh / bat_info.full) * 100.0f, status, bat_info.remaining);
+	return smprintf("%s%s%d%% %s ", battery_glyphs[status],
+			battery_glyphs[level], percent,
+			bat_info.remaining);
 }

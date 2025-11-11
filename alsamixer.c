@@ -9,6 +9,18 @@
 
 #include "backend.h"
 
+enum sound_states {
+	SOUND_MUTE = 0,
+	SOUND_LOW,
+	SOUND_HIGH,
+};
+
+static const char *sound_glyphs[] = {
+	[SOUND_MUTE] = "",
+	[SOUND_LOW] = "",
+	[SOUND_HIGH] = "",
+};
+
 static struct {
 	snd_mixer_t *ctx;
 	snd_mixer_elem_t *elem;
@@ -96,15 +108,19 @@ void alsa_mixer_poll_cb(uv_poll_t *handle, int status, int events)
 }
 
 
-bool is_speaker_muted(void)
+char *get_volume(void)
 {
-	return mixer_handler.is_muted;
-}
+	int state;
 
-
-int get_volume(void)
-{
-	return mixer_handler.volume_percent;
+	if (mixer_handler.is_muted || mixer_handler.volume_percent == 0) {
+		state = SOUND_MUTE;
+	} else {
+		if (mixer_handler.volume_percent < 50)
+			state = SOUND_LOW;
+		else
+			state = SOUND_HIGH;
+	}
+	return smprintf("%s %d%%", sound_glyphs[state], mixer_handler.volume_percent);
 }
 
 

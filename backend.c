@@ -125,6 +125,7 @@ __attribute__((unused)) static char *execscript(const char *cmd)
 	return strdup(retval);
 }
 
+
 void update_status_cb(uv_timer_t *handle)
 {
 	(void)handle;
@@ -134,13 +135,9 @@ void update_status_cb(uv_timer_t *handle)
 	char *bat;
 	char *t0;
 
-	tm = mktimes("Time: %H:%M | Date: %a %d %b %Y");
+	tm = mktimes(" %a %d %b %Y |  %H:%M ");
 	t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
-
-	if (is_speaker_muted())
-		volume = smprintf("%d%% (muted)", get_volume());
-	else
-		volume = smprintf("%d%%", get_volume());
+	volume = get_volume();
 
 
 	/* TODO: right now, when CONFIG_BATTERY_INFO is not defined,
@@ -150,10 +147,10 @@ void update_status_cb(uv_timer_t *handle)
 	 */
 	bat = getbattery();
 	if (bat)
-		status = smprintf("Temp: %s | Battery: %s | Volume: %s | %s",
-			          t0, bat, volume, tm);
+		status = smprintf(" %s|  %s | %s | %s",
+			          bat,t0, volume, tm);
 	else
-		status = smprintf("Temp: %s | Volume: %s | %s", t0, volume, tm);
+		status = smprintf("  %s | %s | %s", t0, volume, tm);
 	setstatus(status);
 
 	free(t0);
