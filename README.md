@@ -1,6 +1,7 @@
 I was tired of other people's code crashing, breaking my setup, and then having to write and send patches to fix it. So I wrote my own.
 
 This is a simple status bar that a surprising number of projects still manage to implement *incorrectly*.
+![image](./demo.png)
 
 ### Dependencies
 - `libuv`
