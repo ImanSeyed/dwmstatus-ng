@@ -43,7 +43,7 @@ static struct {
 	long nowh; /* energy_now (Wh) or charge_now (Ah) */
 	char *status;
 	size_t status_len;
-	char remaining[8]; /* (hh:mm) */
+	char remaining[9]; /* '(hh:mm) ' */
 } bat_info;
 
 
@@ -87,7 +87,7 @@ void update_battery_info(void)
 		tmp_now = strtol(now, NULL, 10);
 
 		/* something weird is going on with your kernel/battery */
-		if (tmp_now <= 0)
+		if (tmp_now < 0)
 			goto fail_remaining;
 
 		if (strcmp(status, "Discharging") == 0) {
@@ -98,6 +98,9 @@ void update_battery_info(void)
 			/* time until full */
 			total_hours = (double)(bat_info.full - bat_info.nowh) / tmp_now;
 			total_minutes = (int)(total_hours * 60.0 + 0.5);
+		} else if (strcmp(status, "Full") == 0) {
+			memset(bat_info.remaining, '\0', sizeof(bat_info.remaining));
+			return;
 		} else {
 			/* unimplemented status */
 			goto fail_remaining;
@@ -105,12 +108,12 @@ void update_battery_info(void)
 
 		hours = total_minutes / 60;
 		mins = total_minutes % 60;
-		snprintf(bat_info.remaining, sizeof(bat_info.remaining), "(%02d:%02d)", hours, mins);
+		snprintf(bat_info.remaining, sizeof(bat_info.remaining), "(%02d:%02d) ", hours, mins);
 		return;
 	}
 
 fail_remaining:
-	strncpy(bat_info.remaining, "(--:--)", sizeof(bat_info.remaining));
+	strncpy(bat_info.remaining, "(--:--) ", sizeof(bat_info.remaining));
 }
 
 
@@ -241,7 +244,7 @@ char *getbattery(void)
 	if (bat_info.full <= 0 || bat_info.nowh < 0)
 		return smprintf("invalid");
 
-	return smprintf("%s%s%d%% %s ", battery_glyphs[status],
+	return smprintf("%s%s%d%% %s", battery_glyphs[status],
 			battery_glyphs[level], percent,
 			bat_info.remaining);
 }
