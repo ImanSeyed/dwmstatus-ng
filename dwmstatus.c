@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <string.h>
 #include <uv.h>
 #include <X11/Xlib.h>
 
@@ -11,7 +12,7 @@
 static Display *dpy;
 
 
-static inline void setstatus(const char *str)
+static inline void set_status(const char *str)
 {
 	XStoreName(dpy, DefaultRootWindow(dpy), str);
 	XSync(dpy, False);
@@ -21,29 +22,28 @@ static inline void setstatus(const char *str)
 void update_status_cb(uv_timer_t *handle)
 {
 	(void)handle;
+	char *tm;
+	char *t0;
+	char *bat;
+	char *batfmt;
 	char *status;
 	char *volume;
-	char *tm;
-	char *bat;
-	char *t0;
 
+	bat = getbattery();
+	batfmt = bat ? smprintf("%s | ", bat) : strdup("");
 	tm = mktimes(" %a %d %b %Y |  %H:%M ");
 	t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
 	volume = get_volume();
 
-	bat = getbattery();
-	if (bat)
-		status = smprintf(" %s|  %s | %s | %s",
-			          bat,t0, volume, tm);
-	else
-		status = smprintf("  %s | %s | %s", t0, volume, tm);
-	setstatus(status);
+	status = smprintf(" %s %s | %s | %s", batfmt, t0, volume, tm);
+	set_status(status);
 
 	free(t0);
 	free(bat);
 	free(tm);
 	free(volume);
 	free(status);
+	free(batfmt);
 }
 
 
