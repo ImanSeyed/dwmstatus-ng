@@ -43,7 +43,7 @@ static struct {
 	long nowh; /* energy_now (Wh) or charge_now (Ah) */
 	char *status;
 	size_t status_len;
-	char remaining[9]; /* '(hh:mm) ' */
+	char remaining[8]; /* '(hh:mm)' */
 } bat_info;
 
 
@@ -86,34 +86,26 @@ void update_battery_info(void)
 		bat_info.nowh = strtol(nowh, NULL, 10);
 		tmp_now = strtol(now, NULL, 10);
 
-		/* something weird is going on with your kernel/battery */
-		if (tmp_now < 0)
-			goto fail_remaining;
-
+		/* only show remaining time when discharging */
 		if (strcmp(status, "Discharging") == 0) {
+			/* avoid division by zero and errors */
+			if (tmp_now <= 0)
+				goto fail_remaining;
+
 			/* time until empty */
 			total_hours = (double)bat_info.nowh / tmp_now;
 			total_minutes = (int)(total_hours * 60.0 + 0.5);
-		} else if (strcmp(status, "Charging") == 0) {
-			/* time until full */
-			total_hours = (double)(bat_info.full - bat_info.nowh) / tmp_now;
-			total_minutes = (int)(total_hours * 60.0 + 0.5);
-		} else if (strcmp(status, "Full") == 0) {
-			memset(bat_info.remaining, '\0', sizeof(bat_info.remaining));
-			return;
-		} else {
-			/* unimplemented status */
-			goto fail_remaining;
-		}
 
-		hours = total_minutes / 60;
-		mins = total_minutes % 60;
-		snprintf(bat_info.remaining, sizeof(bat_info.remaining), "(%02d:%02d) ", hours, mins);
-		return;
+			hours = total_minutes / 60;
+			mins = total_minutes % 60;
+			snprintf(bat_info.remaining, sizeof(bat_info.remaining),
+			         "(%02d:%02d)", hours, mins);
+			return;
+		}
 	}
 
 fail_remaining:
-	strncpy(bat_info.remaining, "(--:--) ", sizeof(bat_info.remaining));
+	memset(bat_info.remaining, '\0', sizeof(bat_info.remaining));
 }
 
 
