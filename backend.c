@@ -11,18 +11,6 @@
 #include <sys/types.h>
 #include <sys/wait.h>
 
-#include <X11/Xlib.h>
-
-#include "batudev.h"
-#include "alsamixer.h"
-
-Display *dpy;
-
-static inline void setstatus(const char *str)
-{
-	XStoreName(dpy, DefaultRootWindow(dpy), str);
-	XSync(dpy, False);
-}
 
 char *smprintf(const char *fmt, ...)
 {
@@ -47,7 +35,8 @@ char *smprintf(const char *fmt, ...)
 	return ret;
 }
 
-static char *mktimes(const char *fmt)
+
+char *mktimes(const char *fmt)
 {
 	char buf[129];
 	time_t tim;
@@ -103,7 +92,8 @@ char *gettemperature(const char *base, const char *sensor)
 	return smprintf("%02.0f°C", temp / 1000.0f);
 }
 
-__attribute__((unused)) static char *execscript(const char *cmd)
+
+char *execscript(const char *cmd)
 {
 	FILE *fp;
 	char retval[1025], *rv;
@@ -123,39 +113,4 @@ __attribute__((unused)) static char *execscript(const char *cmd)
 		retval[len - 1] = '\0';
 
 	return strdup(retval);
-}
-
-
-void update_status_cb(uv_timer_t *handle)
-{
-	(void)handle;
-	char *status;
-	char *volume;
-	char *tm;
-	char *bat;
-	char *t0;
-
-	tm = mktimes(" %a %d %b %Y |  %H:%M ");
-	t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
-	volume = get_volume();
-
-
-	/* TODO: right now, when CONFIG_BATTERY_INFO is not defined,
-	 * getbattery() returns NULL, so free(bat) is fine but
-	 * it'd be a good idea to have a safer wrapper over free()
-	 * to set the pointer to NULL when free() is done.
-	 */
-	bat = getbattery();
-	if (bat)
-		status = smprintf(" %s|  %s | %s | %s",
-			          bat,t0, volume, tm);
-	else
-		status = smprintf("  %s | %s | %s", t0, volume, tm);
-	setstatus(status);
-
-	free(t0);
-	free(bat);
-	free(tm);
-	free(volume);
-	free(status);
 }

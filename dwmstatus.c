@@ -8,7 +8,44 @@
 
 #define TICK 30000
 
-extern Display *dpy;
+static Display *dpy;
+
+
+static inline void setstatus(const char *str)
+{
+	XStoreName(dpy, DefaultRootWindow(dpy), str);
+	XSync(dpy, False);
+}
+
+
+void update_status_cb(uv_timer_t *handle)
+{
+	(void)handle;
+	char *status;
+	char *volume;
+	char *tm;
+	char *bat;
+	char *t0;
+
+	tm = mktimes(" %a %d %b %Y |  %H:%M ");
+	t0 = gettemperature("/sys/devices/virtual/thermal/thermal_zone0", "temp");
+	volume = get_volume();
+
+	bat = getbattery();
+	if (bat)
+		status = smprintf(" %s|  %s | %s | %s",
+			          bat,t0, volume, tm);
+	else
+		status = smprintf("  %s | %s | %s", t0, volume, tm);
+	setstatus(status);
+
+	free(t0);
+	free(bat);
+	free(tm);
+	free(volume);
+	free(status);
+}
+
 
 int main(void)
 {
